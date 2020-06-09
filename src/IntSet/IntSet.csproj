@@ -2,6 +2,11 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
+    <Authors>Kibnet</Authors>
+    <RepositoryUrl>https://github.com/Kibnet/IntSet</RepositoryUrl>
+    <PackageProjectUrl>https://www.nuget.org/packages/IntSet</PackageProjectUrl>
+    <PackageVersion>1.0.0</PackageVersion>
+    <Description>A data structure that is a set of integer values. It works 2 times faster than HashSet&lt;int&gt; and takes up much less memory.</Description>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
