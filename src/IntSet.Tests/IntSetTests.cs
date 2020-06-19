@@ -17,11 +17,54 @@ namespace IntSet.Tests
             }
             for (int i = 0; i < 100000; i++)
             {
-                Assert.True(intSet.Contain(i));
+                Assert.True(intSet.Contains(i));
             }
             for (int i = 100000; i < 200000; i++)
             {
-                Assert.False(intSet.Contain(i));
+                Assert.False(intSet.Contains(i));
+            }
+        }
+
+        [Fact]
+        public void SimpleDeleteTest()
+        {
+            var intSet = new Kibnet.IntSet.IntSet();
+
+            for (int i = 100000; i < 200000; i++)
+            {
+                intSet.Add(i);
+                Assert.True(intSet.Contains(i));
+                intSet.Remove(i);
+                Assert.False(intSet.Contains(i));
+            }
+        }
+        
+        [Theory]
+        [InlineData(1007, 1009)]
+        [InlineData(int.MinValue, int.MinValue + 1000)]
+        [InlineData(int.MaxValue - 1000, int.MaxValue)]
+        [InlineData(-500, 500)]
+        [InlineData(-256, 256)]
+        public void IterationDeleteTest(int from, int to)
+        {
+            var intSet = new Kibnet.IntSet.IntSet();
+
+            for (int i = from; i < to; i++)
+            {
+                intSet.Add(i);
+            }
+
+            for (int i = from; i < to; i++)
+            {
+                Assert.True(intSet.Contains(i));
+                intSet.Remove(i);
+                for (int j = from; j < to; j++)
+                {
+                    if (i >= j)
+                        Assert.False(intSet.Contains(j));
+                    else
+                        Assert.True(intSet.Contains(j));
+                }
             }
         }
 
@@ -39,11 +82,11 @@ namespace IntSet.Tests
             }
             for (int i = 0; i < 100000; i++)
             {
-                Assert.True(intSet.Contain(i));
+                Assert.True(intSet.Contains(i));
             }
             for (int i = 100000; i < 200000; i++)
             {
-                Assert.False(intSet.Contain(i));
+                Assert.False(intSet.Contains(i));
             }
         }
 
@@ -57,7 +100,7 @@ namespace IntSet.Tests
             {
                 intSet.Add(value);
             }
-            Assert.True(intSet.Contain(value));
+            Assert.True(intSet.Contains(value));
         }
 
         [Fact]
@@ -111,9 +154,9 @@ namespace IntSet.Tests
             for (int i = from; i < to; i++)
             {
                 if (i % 2 == 0)
-                    Assert.True(intSet.Contain(i));
+                    Assert.True(intSet.Contains(i));
                 else
-                    Assert.False(intSet.Contain(i));
+                    Assert.False(intSet.Contains(i));
             }
         }
 
@@ -133,9 +176,9 @@ namespace IntSet.Tests
             for (int i = from; i < to; i++)
             {
                 if (i % 2 != 0)
-                    Assert.True(intSet.Contain(i));
+                    Assert.True(intSet.Contains(i));
                 else
-                    Assert.False(intSet.Contain(i));
+                    Assert.False(intSet.Contains(i));
             }
         }
 
@@ -145,14 +188,12 @@ namespace IntSet.Tests
         [InlineData(-50000, 50000)]
         public void FullSetTest(int from, int to)
         {
-            var intSet = new Kibnet.IntSet.IntSet();
-            intSet.root = new Kibnet.IntSet.IntSet.Card { Full = true };
-            intSet.Count = uint.MaxValue;
+            var intSet = new Kibnet.IntSet.IntSet(false, true);
             intSet.Add(0);
 
             for (int i = from; i < to; i++)
             {
-                Assert.True(intSet.Contain(i));
+                Assert.True(intSet.Contains(i));
             }
         }
 
@@ -166,7 +207,7 @@ namespace IntSet.Tests
 
             for (int i = from; i < to; i++)
             {
-                Assert.False(intSet.Contain(i));
+                Assert.False(intSet.Contains(i));
             }
         }
 
@@ -180,23 +221,20 @@ namespace IntSet.Tests
             card0.Cards = null;
             intSet.Add(0);
 
-            Assert.True(intSet.Contain(0));
+            Assert.True(intSet.Contains(0));
         }
 
 
         [Fact]
         public void FullEnumeratorTest()
         {
-            var intSet = new Kibnet.IntSet.IntSet();
-            intSet.root = new Kibnet.IntSet.IntSet.Card { Full = true };
-            intSet.Count = uint.MaxValue;
-
+            var intSet = new Kibnet.IntSet.IntSet(false, true);
 
             var last = -1;
             foreach (var i in intSet.Take(100000))
             {
                 Assert.Equal(last + 1, i);
-                Assert.True(intSet.Contain(i));
+                Assert.True(intSet.Contains(i));
                 last = i;
             }
         }
@@ -204,9 +242,7 @@ namespace IntSet.Tests
         [Fact]
         public void FullSetToStringTest()
         {
-            var intSet = new Kibnet.IntSet.IntSet();
-            intSet.root = new Kibnet.IntSet.IntSet.Card { Full = true };
-            intSet.Count = uint.MaxValue;
+            var intSet = new Kibnet.IntSet.IntSet(false, true);
             var rootString = intSet.root.ToString();
 
             Assert.Equal("1111111111111111111111111111111111111111111111111111111111111111", rootString);

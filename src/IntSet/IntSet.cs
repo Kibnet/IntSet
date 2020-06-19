@@ -8,91 +8,20 @@ using System.Security;
 namespace Kibnet.IntSet
 {
     [Serializable]
-    public class IntSet : IEnumerable<int>
+    public class IntSet : ISet<int>
     {
-        public Card root = new Card(0);
-        public long Count { get; set; } = 0;
+        public IntSet() : this(false, false) { }
 
-        public bool Contain(int value)
+        public IntSet(bool isFastest) : this(isFastest, false) { }
+
+        public IntSet(bool isFastest, bool isFull)
         {
-            var card = root;
-            for (int i = 0; i < 5; i++)
+            _isFastest = isFastest;
+            if (isFull)
             {
-                if (card.Full)
-                {
-                    return true;
-                }
-
-                var index = Card.GetIndex(value, i);
-
-                if (i < 4)
-                {
-                    if (card.Cards[index] == null)
-                        return false;
-                    card = card.Cards[index];
-                }
-                else
-                {
-                    var bindex = index >> 3;
-                    var mask = (byte)(1 << (index & 7));
-                    return (card.Bytes[bindex] & mask) != 0;
-                }
-            }
-            return false;
-        }
-
-        public void Add(int value)
-        {
-            var card = root;
-            for (int i = 0; i < 5; i++)
-            {
-                if (card.Full)
-                {
-                    return;
-                }
-                
-                var index = Card.GetIndex(value, i);
-                if (i < 4)
-                {
-                    if (card.Cards[index] == null)
-                    {
-                        var newcard = new Card(i + 1);
-                        card.Cards[index] = newcard;
-                        card = newcard;
-                    }
-                    else
-                    {
-                        card = card.Cards[index];
-                    }
-                }
-                else
-                {
-                    var bindex = index >> 3;
-                    var mask = (byte)(1 << (index & 7));
-                    if ((card.Bytes[bindex] & mask) == 0)
-                    {
-                        card.Bytes[bindex] |= mask;
-                        Count++;
-                        if (card.Bytes[bindex] == byte.MaxValue)
-                        {
-                            var full = card.CheckFull();
-                            if (full)
-                            {
-                                var parentCard0 = root.Cards[Card.GetIndex(value, 0)];
-                                var parentCard1 = parentCard0.Cards[Card.GetIndex(value,1)];
-                                var parentCard2 = parentCard1.Cards[Card.GetIndex(value,2)];
-                                var parentCard3 = parentCard2.Cards[Card.GetIndex(value,3)];
-                                //var parentCard4 = parentCard3.Cards[indexes[4]];
-                                //if (parentCard4.CheckFull())
-                                    if (parentCard3.CheckFull())
-                                        if (parentCard2.CheckFull())
-                                            if (parentCard1.CheckFull())
-                                                if (parentCard0.CheckFull())
-                                                    return;
-                            }
-                        }
-                    }
-                }
+                _count = UInt32.MaxValue;
+                root.Full = true;
+                root.Cards = null;
             }
         }
 
@@ -153,20 +82,285 @@ namespace Kibnet.IntSet
             return GetEnumerator();
         }
 
+        void ICollection<int>.Add(int item)
+        {
+            Add(item);
+        }
+
+        public void ExceptWith(IEnumerable<int> other)
+        {
+            foreach (var item in other)
+            {
+                Remove(item);
+            }
+        }
+
+        public void IntersectWith(IEnumerable<int> other)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool IsProperSubsetOf(IEnumerable<int> other)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool IsProperSupersetOf(IEnumerable<int> other)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool IsSubsetOf(IEnumerable<int> other)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool IsSupersetOf(IEnumerable<int> other)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Overlaps(IEnumerable<int> other)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool SetEquals(IEnumerable<int> other)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SymmetricExceptWith(IEnumerable<int> other)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void UnionWith(IEnumerable<int> other)
+        {
+            foreach (var item in other)
+            {
+                Add(item);
+            }
+        }
+
+        public bool Add(int item)
+        {
+            var card = root;
+            for (int i = 0; i < 5; i++)
+            {
+                if (card.Full)
+                {
+                    return false;
+                }
+
+                var index = Card.GetIndex(item, i);
+                if (i < 4)
+                {
+                    if (card.Cards == null)
+                    {
+                        card.Init(i);
+                    }
+                    if (card.Cards[index] == null)
+                    {
+                        var newcard = new Card(i + 1);
+                        card.Cards[index] = newcard;
+                        card = newcard;
+                    }
+                    else
+                    {
+                        card = card.Cards[index];
+                    }
+                }
+                else
+                {
+                    if (card.Bytes == null)
+                    {
+                        card.Init(i);
+                    }
+                    var bindex = index >> 3;
+                    var mask = (byte)(1 << (index & 7));
+                    if ((card.Bytes[bindex] & mask) == 0)
+                    {
+                        card.Bytes[bindex] |= mask;
+                        _count++;
+                        if (_isFastest == false && card.Bytes[bindex] == byte.MaxValue)
+                        {
+                            var full = card.CheckFull();
+                            if (full)
+                            {
+                                var parentCard0 = root.Cards[Card.GetIndex(item, 0)];
+                                var parentCard1 = parentCard0.Cards[Card.GetIndex(item, 1)];
+                                var parentCard2 = parentCard1.Cards[Card.GetIndex(item, 2)];
+                                var parentCard3 = parentCard2.Cards[Card.GetIndex(item, 3)];
+                                //var parentCard4 = parentCard3.Cards[indexes[4]];
+                                //if (parentCard4.CheckFull())
+                                if (parentCard3.CheckFull())
+                                    if (parentCard2.CheckFull())
+                                        if (parentCard1.CheckFull())
+                                            if (parentCard0.CheckFull()) ;
+                            }
+                        }
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        public void Clear()
+        {
+            root = new Card(0);
+            _count = 0;
+        }
+
+        bool ICollection<int>.Contains(int item)
+        {
+            return Contains(item);
+        }
+
+        public bool Contains(int item)
+        {
+            var card = root;
+            for (int i = 0; i < 5; i++)
+            {
+                if (card.Full)
+                {
+                    return true;
+                }
+
+                var index = Card.GetIndex(item, i);
+
+                if (i < 4)
+                {
+                    if (card.Cards?[index] == null)
+                        return false;
+                    card = card.Cards[index];
+                }
+                else
+                {
+                    if (card.Bytes == null)
+                    {
+                        return false;
+                    }
+                    var bindex = index >> 3;
+                    var mask = (byte)(1 << (index & 7));
+                    return (card.Bytes[bindex] & mask) != 0;
+                }
+            }
+            return false;
+        }
+
+        public void CopyTo(int[] array, int arrayIndex)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Remove(int item)
+        {
+            var card = root;
+            for (int i = 0; i < 5; i++)
+            {
+                if (card.Full)
+                {
+                    //TODO Split card
+                    card.Init(i, true);
+                    card.Full = false;
+                }
+
+                var index = Card.GetIndex(item, i);
+                if (i < 4)
+                {
+                    if (card.Cards[index] == null)
+                    {
+                        return false;
+                    }
+                    card = card.Cards[index];
+                }
+                else
+                {
+                    var bindex = index >> 3;
+                    var mask = (byte)(1 << (index & 7));
+                    if ((card.Bytes[bindex] & mask) == 0)
+                    {
+                        return false;
+                    }
+
+                    card.Bytes[bindex] ^= mask;
+                    _count--;
+                    if (_isFastest == false && card.Bytes[bindex] == byte.MinValue)
+                    {
+                        var isEmpty = card.CheckEmpty();
+                        if (isEmpty)
+                        {
+                            var parentCard0 = root.Cards[Card.GetIndex(item, 0)];
+                            var parentCard1 = parentCard0.Cards[Card.GetIndex(item, 1)];
+                            var parentCard2 = parentCard1.Cards[Card.GetIndex(item, 2)];
+                            var parentCard3 = parentCard2.Cards[Card.GetIndex(item, 3)];
+                            //var parentCard4 = parentCard3.Cards[indexes[4]];
+                            //if (parentCard4.CheckFull())
+                            if (parentCard3.CheckEmpty())
+                                if (parentCard2.CheckEmpty())
+                                    if (parentCard1.CheckEmpty())
+                                        if (parentCard0.CheckEmpty())
+                                            ;
+                        }
+                    }
+
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public int Count => (int)_count;
+        public long LongCount => _count;
+
+        public bool IsReadOnly { get; }
+
+        public bool IsFastest
+        {
+            get => _isFastest;
+            set => _isFastest = value;
+        }
+
+        public Card root = new Card(0);
+        private bool _isFastest;
+        private long _count;
+
         public class Card : IEnumerable<int>, IEnumerable<byte>
         {
             public Card() { }
 
             public Card(int level)
             {
+                Init(level);
+            }
+
+            public Card Init(int level, bool isFull = false)
+            {
                 if (level < 4)
                 {
                     Cards = new Card[64];
+                    if (isFull)
+                    {
+                        for (int i = 0; i < 64; i++)
+                        {
+                            Cards[i] = new Card { Full = true };
+                        }
+                    }
                 }
                 else
                 {
                     Bytes = new byte[32];
+                    if (isFull)
+                    {
+                        for (int i = 0; i < 32; i++)
+                        {
+                            Bytes[i] = byte.MaxValue;
+                        }
+                    }
                 }
+                return this;
             }
 
             public Card[] Cards;
@@ -189,7 +383,7 @@ namespace Kibnet.IntSet
                 //TODO переписать на получение указателей
                 return (int)(int*)index;
             }
-            
+
             IEnumerator<int> IEnumerable<int>.GetEnumerator()
             {
                 if (Cards != null)
@@ -262,10 +456,35 @@ namespace Kibnet.IntSet
                 }
                 if (Cards != null)
                 {
-                    Full = Cards.All(c => c!=null && c.Full);
+                    Full = Cards.All(c => c != null && c.Full);
                     if (Full == true) Cards = null;
                 }
                 return Full;
+            }
+
+            public bool CheckEmpty()
+            {
+                if (Bytes != null)
+                {
+                    if (Bytes.All(b => b == byte.MinValue))
+                    {
+                        Full = false;
+                        Bytes = null;
+                        return true;
+                    }
+                    return false;
+                }
+                if (Cards != null)
+                {
+                    if (Cards.All(c => c == null || c.CheckEmpty()))
+                    {
+                        Full = false;
+                        Cards = null;
+                        return true;
+                    }
+                    return false;
+                }
+                return !Full;
             }
 
             public static void GetMask(Span<char> span, Card arg)
