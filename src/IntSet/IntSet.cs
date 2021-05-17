@@ -6,7 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security;
 
-namespace Kibnet.IntSet
+namespace Kibnet
 {
     [Serializable]
     public class IntSet : ISet<int>

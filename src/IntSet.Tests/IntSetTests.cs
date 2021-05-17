@@ -1,4 +1,4 @@
-using System;
+
 using System.Collections;
 using System.Linq;
 using Xunit;
@@ -8,9 +8,17 @@ namespace IntSet.Tests
     public class IntSetTests
     {
         [Fact]
+        public void GetEnumerableTest()
+        {
+            Assert.Equal(1, TestHelper.GetEnumerable(1, 1).Single());
+            Assert.Equal(100, TestHelper.GetEnumerable(1, 100).Count());
+            Assert.Equal(100, TestHelper.GetEnumerable(100, 1).Count());
+        }
+
+        [Fact]
         public void SimpleContainsTest()
         {
-            var intSet = new Kibnet.IntSet.IntSet();
+            var intSet = new Kibnet.IntSet();
             for (int i = 0; i < 100000; i++)
             {
                 intSet.Add(i);
@@ -28,7 +36,7 @@ namespace IntSet.Tests
         [Fact]
         public void SimpleDeleteTest()
         {
-            var intSet = new Kibnet.IntSet.IntSet();
+            var intSet = new Kibnet.IntSet();
 
             for (int i = 100000; i < 200000; i++)
             {
@@ -38,7 +46,7 @@ namespace IntSet.Tests
                 Assert.False(intSet.Contains(i));
             }
         }
-        
+
         [Theory]
         [InlineData(1007, 1009)]
         [InlineData(int.MinValue, int.MinValue + 1000)]
@@ -47,7 +55,7 @@ namespace IntSet.Tests
         [InlineData(-256, 256)]
         public void IterationDeleteTest(int from, int to)
         {
-            var intSet = new Kibnet.IntSet.IntSet();
+            var intSet = new Kibnet.IntSet();
 
             for (int i = from; i < to; i++)
             {
@@ -71,7 +79,7 @@ namespace IntSet.Tests
         [Fact]
         public void DoubleAddContainsTest()
         {
-            var intSet = new Kibnet.IntSet.IntSet();
+            var intSet = new Kibnet.IntSet();
             for (int i = 0; i < 100000; i++)
             {
                 intSet.Add(i);
@@ -96,7 +104,7 @@ namespace IntSet.Tests
         [InlineData(0)]
         public void BoundContainsTest(int value)
         {
-            var intSet = new Kibnet.IntSet.IntSet();
+            var intSet = new Kibnet.IntSet();
             {
                 intSet.Add(value);
             }
@@ -106,11 +114,7 @@ namespace IntSet.Tests
         [Fact]
         public void OrderedEnumerateTest()
         {
-            var intSet = new Kibnet.IntSet.IntSet();
-            for (int i = 100000; i >= 0; i--)
-            {
-                intSet.Add(i);
-            }
+            var intSet = new Kibnet.IntSet(TestHelper.GetEnumerable(100000, 0));
 
             var last = -1;
             foreach (var i in intSet)
@@ -123,11 +127,7 @@ namespace IntSet.Tests
         [Fact]
         public void OrderedIEnumerateTest()
         {
-            var intSet = new Kibnet.IntSet.IntSet();
-            for (int i = 100000; i >= 0; i--)
-            {
-                intSet.Add(i);
-            }
+            var intSet = new Kibnet.IntSet(TestHelper.GetEnumerable(100000, 0));
 
             var last = -1;
             var enumerable = intSet as IEnumerable;
@@ -144,14 +144,14 @@ namespace IntSet.Tests
         [InlineData(-50000, 50000)]
         public void EvensTest(int from, int to)
         {
-            var intSet = new Kibnet.IntSet.IntSet();
-            for (int i = from; i < to; i++)
+            var intSet = new Kibnet.IntSet();
+            foreach (var i in TestHelper.GetEnumerable(from, to))
             {
                 if (i % 2 == 0)
                     intSet.Add(i);
             }
 
-            for (int i = from; i < to; i++)
+            foreach (var i in TestHelper.GetEnumerable(from, to))
             {
                 if (i % 2 == 0)
                     Assert.True(intSet.Contains(i));
@@ -166,14 +166,14 @@ namespace IntSet.Tests
         [InlineData(-50000, 50000)]
         public void NotEvensTest(int from, int to)
         {
-            var intSet = new Kibnet.IntSet.IntSet();
-            for (int i = from; i < to; i++)
+            var intSet = new Kibnet.IntSet();
+            foreach (var i in TestHelper.GetEnumerable(from, to))
             {
                 if (i % 2 != 0)
                     intSet.Add(i);
             }
 
-            for (int i = from; i < to; i++)
+            foreach (var i in TestHelper.GetEnumerable(from, to))
             {
                 if (i % 2 != 0)
                     Assert.True(intSet.Contains(i));
@@ -188,10 +188,10 @@ namespace IntSet.Tests
         [InlineData(-50000, 50000)]
         public void FullSetTest(int from, int to)
         {
-            var intSet = new Kibnet.IntSet.IntSet(false, true);
+            var intSet = new Kibnet.IntSet(false, true);
             intSet.Add(0);
 
-            for (int i = from; i < to; i++)
+            foreach (var i in TestHelper.GetEnumerable(from, to))
             {
                 Assert.True(intSet.Contains(i));
             }
@@ -203,9 +203,9 @@ namespace IntSet.Tests
         [InlineData(-50000, 50000)]
         public void EmptySetTest(int from, int to)
         {
-            var intSet = new Kibnet.IntSet.IntSet();
+            var intSet = new Kibnet.IntSet();
 
-            for (int i = from; i < to; i++)
+            foreach (var i in TestHelper.GetEnumerable(from, to))
             {
                 Assert.False(intSet.Contains(i));
             }
@@ -214,7 +214,7 @@ namespace IntSet.Tests
         [Fact]
         public void Card0FullTest()
         {
-            var intSet = new Kibnet.IntSet.IntSet();
+            var intSet = new Kibnet.IntSet();
             intSet.Add(0);
             var card0 = intSet.root.Cards.FirstOrDefault(card => card != null);
             card0.Full = true;
@@ -228,7 +228,7 @@ namespace IntSet.Tests
         [Fact]
         public void FullEnumeratorTest()
         {
-            var intSet = new Kibnet.IntSet.IntSet(false, true);
+            var intSet = new Kibnet.IntSet(false, true);
 
             var last = -1;
             foreach (var i in intSet.Take(100000))
@@ -242,7 +242,7 @@ namespace IntSet.Tests
         [Fact]
         public void FullSetToStringTest()
         {
-            var intSet = new Kibnet.IntSet.IntSet(false, true);
+            var intSet = new Kibnet.IntSet(false, true);
             var rootString = intSet.root.ToString();
 
             Assert.Equal("1111111111111111111111111111111111111111111111111111111111111111", rootString);
@@ -251,7 +251,7 @@ namespace IntSet.Tests
         [Fact]
         public void FiveLevelSetToStringTest()
         {
-            var card = new Kibnet.IntSet.IntSet.Card(5) { Full = true };
+            var card = new Kibnet.IntSet.Card(5) { Full = true };
 
             var cardString = card.ToString();
 
@@ -261,7 +261,7 @@ namespace IntSet.Tests
         [Fact]
         public void OneSetToStringTest()
         {
-            var intSet = new Kibnet.IntSet.IntSet();
+            var intSet = new Kibnet.IntSet();
             intSet.Add(1);
             foreach (int indexCard0 in intSet.root)
             {
@@ -288,6 +288,102 @@ namespace IntSet.Tests
                     }
                 }
             }
+        }
+
+        [Fact]
+        public void IntersectWithTest()
+        {
+            var intSet = new Kibnet.IntSet(TestHelper.GetEnumerable(100000, 100));
+            
+            var intSet2 = new Kibnet.IntSet(TestHelper.GetEnumerable(10000, 0));
+            
+            intSet.IntersectWith(intSet2);
+
+            var last = 99;
+            var enumerable = intSet as IEnumerable;
+            Assert.Equal(100, intSet.First());
+            foreach (int i in enumerable)
+            {
+                Assert.Equal(last + 1, i);
+                last = i;
+            }
+            Assert.Equal(10000, intSet.Last());
+        }
+
+        [Fact]
+        public void IntersectWithIEnumerableTest()
+        {
+            var intSet = new Kibnet.IntSet(TestHelper.GetEnumerable(100000, 100));
+            
+            var intSet2 = TestHelper.GetEnumerable(10000, 0);
+
+            intSet.IntersectWith(intSet2);
+
+            var last = 99;
+            var enumerable = intSet as IEnumerable;
+            Assert.Equal(100, intSet.First());
+            foreach (int i in enumerable)
+            {
+                Assert.Equal(last + 1, i);
+                last = i;
+            }
+            Assert.Equal(10000, intSet.Last());
+        }
+
+        [Fact]
+        public void CopyToTest()
+        {
+            var intSet = new Kibnet.IntSet(TestHelper.GetEnumerable(100000, 1));
+            
+            var array = new int[intSet.Count];
+            intSet.CopyTo(array);
+
+            var last = 0;
+            Assert.Equal(1, intSet.First());
+            foreach (int i in array)
+            {
+                Assert.Equal(last + 1, i);
+                last = i;
+            }
+            Assert.Equal(100000, intSet.Last());
+        }
+
+        [Fact]
+        public void IsProperSubsetOfTest()
+        {
+            var intSet = new Kibnet.IntSet(TestHelper.GetEnumerable(100000, 100));
+
+            var intSet2 = new Kibnet.IntSet(TestHelper.GetEnumerable(10000, 0));
+
+            var intSet3 = new Kibnet.IntSet(TestHelper.GetEnumerable(100000, 0));
+
+            Assert.False(intSet.IsProperSubsetOf(intSet2));
+            Assert.True(intSet.IsProperSubsetOf(intSet3));
+        }
+
+        [Fact]
+        public void IsProperSubsetOfIEnumerableTest()
+        {
+            var intSet = new Kibnet.IntSet(TestHelper.GetEnumerable(100000, 100));
+            
+            var intSet2 = TestHelper.GetEnumerable(10000, 0);
+
+            var intSet3 = TestHelper.GetEnumerable(100000, 0);
+
+            Assert.False(intSet.IsProperSubsetOf(intSet2));
+            Assert.True(intSet.IsProperSubsetOf(intSet3));
+        }        
+        
+        [Fact]
+        public void ExceptWithTest()
+        {
+            var intSet = new Kibnet.IntSet(TestHelper.GetEnumerable(100000, 100));
+
+            var intSet2 = new Kibnet.IntSet(TestHelper.GetEnumerable(10000, 0));
+
+            intSet.ExceptWith(intSet2);
+
+            intSet.EqualRange(10001, 100000);
         }
     }
 }
