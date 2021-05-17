@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security;
@@ -11,6 +12,11 @@ namespace Kibnet.IntSet
     public class IntSet : ISet<int>
     {
         public IntSet() : this(false, false) { }
+
+        public IntSet(IEnumerable<int> items) : this(false, false)
+        {
+            UnionWith(items);
+        }
 
         public IntSet(bool isFastest) : this(isFastest, false) { }
 
@@ -97,12 +103,218 @@ namespace Kibnet.IntSet
 
         public void IntersectWith(IEnumerable<int> other)
         {
-            throw new NotImplementedException();
+            if (other == null)
+            {
+                throw new ArgumentNullException(nameof(other));
+            }
+
+            // Intersection of anything with empty set is empty set, so return if count is 0.
+            // Same if the set intersecting with itself is the same set.
+            if (Count == 0 || ReferenceEquals(other, this))
+            {
+                return;
+            }
+
+            // If other is known to be empty, intersection is empty set; remove all elements, and we're done.
+            if (other is ICollection<int> otherAsCollection)
+            {
+                if (otherAsCollection.Count == 0)
+                {
+                    Clear();
+                    return;
+                }
+
+                if (other is ISet<int> otherAsSet)
+                {
+                    IntersectWithIntSet(otherAsSet);
+                    return;
+                }
+            }
+
+            IntersectWithEnumerable(other);
         }
+
+        private void IntersectWithIntSet(ISet<int> other)
+        {
+            foreach (var item in this)
+            {
+                if (!other.Contains(item))
+                {
+                    InternalRemove(item, true);
+                }
+            }
+        }
+
+        private void IntersectWithEnumerable(IEnumerable<int> other)
+        {
+            var result = new IntSet();
+            foreach (var item in other)
+            {
+                if (Contains(item))
+                {
+                    result.Add(item);
+                }
+            }
+
+            root = result.root;
+            _count = result._count;
+        }
+
+        /// <summary>
+        /// Checks if this contains of other's elements. Iterates over other's elements and
+        /// returns false as soon as it finds an element in other that's not in this.
+        /// Used by SupersetOf, ProperSupersetOf, and SetEquals.
+        /// </summary>
+        private bool ContainsAllElements(IEnumerable<int> other)
+        {
+            foreach (var element in other)
+            {
+                if (!Contains(element))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Implementation Notes:
+        /// If other is a intset and is using same equality comparer, then checking subset is
+        /// faster. Simply check that each element in this is in other.
+        ///
+        /// Note: if other doesn't use same equality comparer, then Contains check is invalid,
+        /// which is why callers must take are of this.
+        ///
+        /// If callers are concerned about whether this is a proper subset, they take care of that.
+        /// </summary>
+        internal bool IsSubsetOfHashSetWithSameComparer(IntSet other)
+        {
+            foreach (var item in this)
+            {
+                if (!other.Contains(item))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
 
         public bool IsProperSubsetOf(IEnumerable<int> other)
         {
-            throw new NotImplementedException();
+            if (other == null)
+            {
+                throw new ArgumentNullException(nameof(other));
+            }
+
+            // No set is a proper subset of itself.
+            if (other == this)
+            {
+                return false;
+            }
+
+            if (other is ICollection<int> otherAsCollection)
+            {
+                // No set is a proper subset of an empty set.
+                if (otherAsCollection.Count == 0)
+                {
+                    return false;
+                }
+
+                // The empty set is a proper subset of anything but the empty set.
+                if (Count == 0)
+                {
+                    return otherAsCollection.Count > 0;
+                }
+
+                // Faster if other is a hashset (and we're using same equality comparer).
+                if (other is IntSet otherAsSet)
+                {
+                    if (Count >= otherAsSet.Count)
+                    {
+                        return false;
+                    }
+
+                    // This has strictly less than number of items in other, so the following
+                    // check suffices for proper subset.
+                    return IsSubsetOfHashSetWithSameComparer(otherAsSet);
+                }
+            }
+
+            (int uniqueCount, int unfoundCount) = CheckUniqueAndUnfoundElements(other, returnIfUnfound: false);
+            return uniqueCount == Count && unfoundCount > 0;
+        }
+
+        /// <summary>
+        /// Determines counts that can be used to determine equality, subset, and superset. This
+        /// is only used when other is an IEnumerable and not a HashSet. If other is a HashSet
+        /// these properties can be checked faster without use of marking because we can assume
+        /// other has no duplicates.
+        ///
+        /// The following count checks are performed by callers:
+        /// 1. Equals: checks if unfoundCount = 0 and uniqueFoundCount = _count; i.e. everything
+        /// in other is in this and everything in this is in other
+        /// 2. Subset: checks if unfoundCount >= 0 and uniqueFoundCount = _count; i.e. other may
+        /// have elements not in this and everything in this is in other
+        /// 3. Proper subset: checks if unfoundCount > 0 and uniqueFoundCount = _count; i.e
+        /// other must have at least one element not in this and everything in this is in other
+        /// 4. Proper superset: checks if unfound count = 0 and uniqueFoundCount strictly less
+        /// than _count; i.e. everything in other was in this and this had at least one element
+        /// not contained in other.
+        ///
+        /// An earlier implementation used delegates to perform these checks rather than returning
+        /// an ElementCount struct; however this was changed due to the perf overhead of delegates.
+        /// </summary>
+        /// <param name="other"></param>
+        /// <param name="returnIfUnfound">Allows us to finish faster for equals and proper superset
+        /// because unfoundCount must be 0.</param>
+        private (int UniqueCount, int UnfoundCount) CheckUniqueAndUnfoundElements(IEnumerable<int> other, bool returnIfUnfound)
+        {
+            // Need special case in case this has no elements.
+            if (_count == 0)
+            {
+                int numElementsInOther = 0;
+                foreach (int item in other)
+                {
+                    numElementsInOther++;
+                    break; // break right away, all we want to know is whether other has 0 or 1 elements
+                }
+
+                return (UniqueCount: 0, UnfoundCount: numElementsInOther);
+            }
+
+            Debug.Assert((root.Cards != null) && (_count > 0), "root.Cards was null but count greater than 0");
+
+            int unfoundCount = 0; // count of items in other not found in this
+            int uniqueFoundCount = 0; // count of unique items in other found in this
+
+
+            var otherAsSet = new IntSet();
+
+            foreach (int item in other)
+            {
+                if (Contains(item))
+                {
+                    if (!otherAsSet.Contains(item))
+                    {
+                        // Item hasn't been seen yet.
+                        otherAsSet.Add(item);
+                        uniqueFoundCount++;
+                    }
+                }
+                else
+                {
+                    unfoundCount++;
+                    if (returnIfUnfound)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return (uniqueFoundCount, unfoundCount);
         }
 
         public bool IsProperSupersetOf(IEnumerable<int> other)
@@ -137,6 +349,11 @@ namespace Kibnet.IntSet
 
         public void UnionWith(IEnumerable<int> other)
         {
+            if (other == null)
+            {
+                throw new ArgumentNullException(nameof(other));
+            }
+
             foreach (var item in other)
             {
                 Add(item);
@@ -250,12 +467,54 @@ namespace Kibnet.IntSet
             return false;
         }
 
-        public void CopyTo(int[] array, int arrayIndex)
+        public void CopyTo(int[] array) => CopyTo(array, 0, Count);
+
+        public void CopyTo(int[] array, int arrayIndex) => CopyTo(array, arrayIndex, Count);
+
+        public void CopyTo(int[] array, int arrayIndex, int count)
         {
-            throw new NotImplementedException();
+            if (array == null)
+            {
+                throw new ArgumentNullException(nameof(array));
+            }
+
+            // Check array index valid index into array.
+            if (arrayIndex < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(arrayIndex), arrayIndex, "Non-negative number required.");
+            }
+
+            // Also throw if count less than 0.
+            if (count < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count), count, "Non-negative number required.");
+            }
+
+            // Will the array, starting at arrayIndex, be able to hold elements? Note: not
+            // checking arrayIndex >= array.Length (consistency with list of allowing
+            // count of 0; subsequent check takes care of the rest)
+            if (arrayIndex > array.Length || count > array.Length - arrayIndex)
+            {
+                throw new ArgumentException("Destination array is not long enough to copy all the items in the collection. Check array index and length.");
+            }
+
+            var enumerator = GetEnumerator();
+            for (int i = 0; i < _count && count != 0; i++)
+            {
+                if (enumerator.MoveNext())
+                {
+                    array[arrayIndex++] = enumerator.Current;
+                    count--;
+                }
+            }
         }
 
         public bool Remove(int item)
+        {
+            return InternalRemove(item, _isFastest);
+        }
+
+        private bool InternalRemove(int item, bool isFastest)
         {
             var card = root;
             for (int i = 0; i < 5; i++)
@@ -274,12 +533,13 @@ namespace Kibnet.IntSet
                     {
                         return false;
                     }
+
                     card = card.Cards[index];
                 }
                 else
                 {
                     var bindex = index >> 3;
-                    var mask = (byte)(1 << (index & 7));
+                    var mask = (byte) (1 << (index & 7));
                     if ((card.Bytes[bindex] & mask) == 0)
                     {
                         return false;
@@ -287,7 +547,7 @@ namespace Kibnet.IntSet
 
                     card.Bytes[bindex] ^= mask;
                     _count--;
-                    if (_isFastest == false && card.Bytes[bindex] == byte.MinValue)
+                    if (isFastest == false && card.Bytes[bindex] == byte.MinValue)
                     {
                         var isEmpty = card.CheckEmpty();
                         if (isEmpty)
@@ -309,6 +569,7 @@ namespace Kibnet.IntSet
                     return true;
                 }
             }
+
             return false;
         }
 
