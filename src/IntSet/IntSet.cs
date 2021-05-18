@@ -9,7 +9,7 @@ using System.Security;
 namespace Kibnet
 {
     [Serializable]
-    public class IntSet : ISet<int>
+    public class IntSet : ISet<int>, IReadOnlyCollection<int>
     {
         public IntSet() : this(false, false) { }
 
@@ -319,32 +319,262 @@ namespace Kibnet
 
         public bool IsProperSupersetOf(IEnumerable<int> other)
         {
-            throw new NotImplementedException();
+            if (other == null)
+            {
+                throw new ArgumentNullException(nameof(other));
+            }
+
+            // The empty set isn't a proper superset of any set, and a set is never a strict superset of itself.
+            if (Count == 0 || other == this)
+            {
+                return false;
+            }
+
+            if (other is ICollection<int> otherAsCollection)
+            {
+                // If other is the empty set then this is a superset.
+                if (otherAsCollection.Count == 0)
+                {
+                    // Note that this has at least one element, based on above check.
+                    return true;
+                }
+
+                // Faster if other is a hashset with the same equality comparer
+                if (other is IntSet otherAsSet)
+                {
+                    if (otherAsSet.Count >= Count)
+                    {
+                        return false;
+                    }
+
+                    // Now perform element check.
+                    return ContainsAllElements(otherAsSet);
+                }
+            }
+
+            // Couldn't fall out in the above cases; do it the long way
+            (int uniqueCount, int unfoundCount) = CheckUniqueAndUnfoundElements(other, returnIfUnfound: true);
+            return uniqueCount < Count && unfoundCount == 0;
         }
 
         public bool IsSubsetOf(IEnumerable<int> other)
         {
-            throw new NotImplementedException();
+            if (other == null)
+            {
+                throw new ArgumentNullException(nameof(other));
+            }
+
+            // The empty set is a subset of any set, and a set is a subset of itself.
+            // Set is always a subset of itself
+            if (Count == 0 || other == this)
+            {
+                return true;
+            }
+
+            // Faster if other has unique elements according to this equality comparer; so check
+            // that other is a hashset using the same equality comparer.
+            if (other is IntSet otherAsSet)
+            {
+                // if this has more elements then it can't be a subset
+                if (Count > otherAsSet.Count)
+                {
+                    return false;
+                }
+
+                // already checked that we're using same equality comparer. simply check that
+                // each element in this is contained in other.
+                return IsSubsetOfHashSetWithSameComparer(otherAsSet);
+            }
+
+            (int uniqueCount, int unfoundCount) = CheckUniqueAndUnfoundElements(other, returnIfUnfound: false);
+            return uniqueCount == Count && unfoundCount >= 0;
         }
 
         public bool IsSupersetOf(IEnumerable<int> other)
         {
-            throw new NotImplementedException();
+            if (other == null)
+            {
+                throw new ArgumentNullException(nameof(other));
+            }
+
+            // A set is always a superset of itself.
+            if (other == this)
+            {
+                return true;
+            }
+
+            // Try to fall out early based on counts.
+            if (other is ICollection<int> otherAsCollection)
+            {
+                // If other is the empty set then this is a superset.
+                if (otherAsCollection.Count == 0)
+                {
+                    return true;
+                }
+
+                // Try to compare based on counts alone if other is a hashset with same equality comparer.
+                if (other is IntSet otherAsSet && otherAsSet.Count > Count)
+                {
+                    return false;
+                }
+            }
+
+            return ContainsAllElements(other);
         }
 
         public bool Overlaps(IEnumerable<int> other)
         {
-            throw new NotImplementedException();
+            if (other == null)
+            {
+                throw new ArgumentNullException(nameof(other));
+            }
+
+            if (Count == 0)
+            {
+                return false;
+            }
+
+            // Set overlaps itself
+            if (other == this)
+            {
+                return true;
+            }
+
+            foreach (var element in other)
+            {
+                if (Contains(element))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public bool SetEquals(IEnumerable<int> other)
         {
-            throw new NotImplementedException();
+            if (other == null)
+            {
+                throw new ArgumentNullException(nameof(other));
+            }
+
+            // A set is equal to itself.
+            if (other == this)
+            {
+                return true;
+            }
+
+            // Faster if other is a hashset and we're using same equality comparer.
+            if (other is IntSet otherAsSet)
+            {
+                // Attempt to return early: since both contain unique elements, if they have
+                // different counts, then they can't be equal.
+                if (Count != otherAsSet.Count)
+                {
+                    return false;
+                }
+
+                // Already confirmed that the sets have the same number of distinct elements, so if
+                // one is a superset of the other then they must be equal.
+                return ContainsAllElements(otherAsSet);
+            }
+            else
+            {
+                // If this count is 0 but other contains at least one element, they can't be equal.
+                if (Count == 0 &&
+                    other is ICollection<int> otherAsCollection &&
+                    otherAsCollection.Count > 0)
+                {
+                    return false;
+                }
+
+                (int uniqueCount, int unfoundCount) = CheckUniqueAndUnfoundElements(other, returnIfUnfound: true);
+                return uniqueCount == Count && unfoundCount == 0;
+            }
         }
 
         public void SymmetricExceptWith(IEnumerable<int> other)
         {
-            throw new NotImplementedException();
+            if (other == null)
+            {
+                throw new ArgumentNullException(nameof(other));
+            }
+
+            // If set is empty, then symmetric difference is other.
+            if (Count == 0)
+            {
+                UnionWith(other);
+                return;
+            }
+
+            // Special-case this; the symmetric difference of a set with itself is the empty set.
+            if (other == this)
+            {
+                Clear();
+                return;
+            }
+
+            // If other is a HashSet, it has unique elements according to its equality comparer,
+            // but if they're using different equality comparers, then assumption of uniqueness
+            // will fail. So first check if other is a hashset using the same equality comparer;
+            // symmetric except is a lot faster and avoids bit array allocations if we can assume
+            // uniqueness.
+            if (other is ISet<int> otherAsSet)
+            {
+                SymmetricExceptWithUniqueHashSet(otherAsSet);
+            }
+            else
+            {
+                SymmetricExceptWithEnumerable(other);
+            }
+        }
+
+        private void SymmetricExceptWithUniqueHashSet(ISet<int> other)
+        {
+            foreach (int item in other)
+            {
+                if (!Remove(item))
+                {
+                    Add(item);
+                }
+            }
+        }
+
+        private void SymmetricExceptWithEnumerable(IEnumerable<int> other)
+        {
+            var itemsToRemove = new IntSet();
+
+            var itemsAddedFromOther = new IntSet();
+
+            foreach (int item in other)
+            {
+                if (Add(item))
+                {
+                    // wasn't already present in collection; flag it as something not to remove
+                    // *NOTE* if location is out of range, we should ignore. BitHelper will
+                    // detect that it's out of bounds and not try to mark it. But it's
+                    // expected that location could be out of bounds because adding the item
+                    // will increase _lastIndex as soon as all the free spots are filled.
+                    itemsAddedFromOther.Add(item);
+                }
+                else
+                {
+                    // already there...if not added from other, mark for remove.
+                    // *NOTE* Even though BitHelper will check that location is in range, we want
+                    // to check here. There's no point in checking items beyond originalCount
+                    // because they could not have been in the original collection
+                    if (!itemsAddedFromOther.Contains(item))
+                    {
+                        itemsToRemove.Add(item);
+                    }
+                }
+            }
+
+            // if anything marked, remove it
+            foreach (var item in itemsToRemove)
+            {
+                Remove(item);
+            }
         }
 
         public void UnionWith(IEnumerable<int> other)
@@ -514,6 +744,7 @@ namespace Kibnet
             return InternalRemove(item, _isFastest);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool InternalRemove(int item, bool isFastest)
         {
             var card = root;
