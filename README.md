@@ -1,4 +1,4 @@
-# IntSet
+# IntSet <img src ="https://github.com/Kibnet/IntSet/raw/master/resources/IntSet.jpg" width="80px" alt="IntSet" align ="right">
 ![](https://github.com/Kibnet/IntSet/workflows/NuGet%20Generation/badge.svg?branch=master)
 ![](https://img.shields.io/github/issues/Kibnet/IntSet.svg?label=Issues)
 ![](https://img.shields.io/github/tag/Kibnet/IntSet.svg?label=Last%20Version)
