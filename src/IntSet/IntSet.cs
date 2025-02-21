@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security;
+using System.Xml.Linq;
 
 namespace Kibnet
 {
@@ -508,53 +509,63 @@ namespace Kibnet
 
         public IEnumerator<int> GetEnumerator()
         {
-            foreach (var i0 in (IEnumerable<int>)root)
+            foreach (var i0 in TraverseRootCards(root))
             {
-                var cards1 = root.Full ? root : root.Cards[i0];
-                if (cards1 != null)
+                foreach (var i1 in TraverseCards(root, i0))
                 {
-                    foreach (var i1 in (IEnumerable<int>)cards1)
+                    foreach (var i2 in TraverseCards(root, i0, i1))
                     {
-                        var cards2 = cards1.Full ? cards1 : cards1.Cards[i1];
-                        if (cards2 != null)
+                        foreach (var i3 in TraverseCards(root, i0, i1, i2))
                         {
-                            foreach (var i2 in (IEnumerable<int>)cards2)
+                            foreach (var value in ProcessBytes(root, i0, i1, i2, i3))
                             {
-                                var cards3 = cards2.Full ? cards2 : cards2.Cards[i2];
-                                if (cards3 != null)
-                                {
-                                    foreach (var i3 in (IEnumerable<int>)cards3)
-                                    {
-                                        var bytes = cards3.Full ? cards3 : cards3.Cards[i3];
-                                        if (bytes != null)
-                                        {
-                                            var bytecount = 0;
-                                            foreach (var i4 in (IEnumerable<byte>)bytes)
-                                            {
-                                                for (int j = 0; j < 8; j++)
-                                                {
-                                                    var tail = i4 & (1 << j);
-                                                    if (tail != 0)
-                                                    {
-                                                        var value = i0 << 26;
-                                                        value |= i1 << 20;
-                                                        value |= i2 << 14;
-                                                        value |= i3 << 8;
-                                                        value |= bytecount << 3;
-                                                        value |= j;
-                                                        yield return value;
-                                                    }
-                                                }
-
-                                                bytecount++;
-                                            }
-                                        }
-                                    }
-                                }
+                                yield return value;
                             }
                         }
                     }
                 }
+            }
+        }
+
+        private IEnumerable<int> TraverseRootCards(Card root)
+        {
+            for (int i0 = 32; i0 < 64; i0++)
+            {
+                if (root.Cards[i0] != null)
+                {
+                    yield return i0;
+                }
+            }
+            for (int i0 = 0; i0 < 32; i0++)
+            {
+                if (root.Cards[i0] != null)
+                {
+                    yield return i0;
+                }
+            }
+        }
+
+        private IEnumerable<int> TraverseCards(Card node, params int[] indices)
+        {
+            var current = indices.Aggregate(node, (n, index) => n.Full ? n : n.Cards[index]);
+            return current != null ? (IEnumerable<int>)current : [];
+        }
+
+        private IEnumerable<int> ProcessBytes(Card root, int i0, int i1, int i2, int i3)
+        {
+            var bytes = TraverseCards(root, i0, i1, i2, i3);
+            int byteCount = 0;
+
+            foreach (var i4 in bytes.Cast<byte>())
+            {
+                for (int j = 0; j < 8; j++)
+                {
+                    if ((i4 & (1 << j)) != 0)
+                    {
+                        yield return (i0 << 26) | (i1 << 20) | (i2 << 14) | (i3 << 8) | (byteCount << 3) | j;
+                    }
+                }
+                byteCount++;
             }
         }
 
