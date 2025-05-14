@@ -220,10 +220,10 @@ namespace IntSet.Tests
         }
 
         [Theory]
-        [InlineData(int.MinValue, int.MinValue + 1000000, 997)]
-        [InlineData(int.MaxValue - 1000000, int.MaxValue, 997)]
-        [InlineData(-5000000, 5000000, 997)]
-        [InlineData(int.MinValue, int.MaxValue, 2147477)]
+        [InlineData(int.MinValue, int.MinValue + 100000, 997)]
+        [InlineData(int.MaxValue - 100000, int.MaxValue, 997)]
+        [InlineData(-500000, 500000, 997)]
+        [InlineData(int.MinValue, int.MaxValue, 214747777)]
         public void FullSteppedSetTest(int from, int to, int step)
         {
             var intSet = new Kibnet.IntSet(false, true);

@@ -289,7 +289,7 @@ namespace Kibnet
                                 if (parentCard2.CheckEmpty())
                                     if (parentCard1.CheckEmpty())
                                         if (parentCard0.CheckEmpty())
-                                            ;
+                                            root.CheckEmpty();
                         }
                     }
 

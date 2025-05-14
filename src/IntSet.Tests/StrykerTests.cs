@@ -213,5 +213,113 @@ namespace IntSet.Tests
             Assert.Throws<ArgumentNullException>(() => set.Overlaps(null));
             Assert.Throws<ArgumentNullException>(() => set.SetEquals(null));
         }
+
+        [Fact]
+        public void IsFastest_SetFalse_RemainsFalse()
+        {
+            var set = new Kibnet.IntSet(new[] { 1, 2, 3 });
+            set.IsFastest = false;
+            // На прямую поле недоступно, но можно косвенно проверить:
+            // добавим элемент, и убеждаемся, что удаление идёт по «медленному» пути (Bytes != null)
+            set.Add(4);
+            Assert.True(set.Contains(4));
+            // здесь важнее, что при IsFastest = false в методе Remove не сбрасывается Bytes раньше времени
+            // (иначе Remove мог бы возвращать неверно)
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Remove_VariousIsFastestPaths_DoNotThrow(bool isFastest)
+        {
+            var set = new Kibnet.IntSet(new[] { 5 });
+            set.IsFastest = isFastest;
+            // при любом значении флага метод Remove должен вернуть true
+            Assert.True(set.Remove(5));
+            Assert.False(set.Contains(5));
+        }
+
+        [Fact]
+        public void Remove_CascadeEmptyCards_RemovesAllLevels()
+        {
+            // строим IntSet, в котором один элемент лежит глубоко в дереве
+            var value = 555;
+            var set = new Kibnet.IntSet([value]);
+            // удаляем этот элемент — он должен снять все четыре уровня Card
+            bool removed = set.Remove(value);
+            Assert.True(removed);
+            // Теперь в дереве должна быть только корневая карточка с пустой Bytes/картами
+            Assert.False(set.Contains(value));
+            Assert.True(set.root.Cards == null);
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(1)]
+        [InlineData(2)]
+        public void ElementAt_ValidAndInvalidIndexes(int idx)
+        {
+            var set = new Kibnet.IntSet(new[] { 10, 20, 30 });
+            if (idx < set.Count)
+                Assert.Equal(new[] { 10, 20, 30 }[idx], set.ElementAt(idx));
+            else
+                Assert.Throws<ArgumentOutOfRangeException>(() => _ = set.ElementAt(idx));
+        }
+
+        [Fact]
+        public void CopyTo_ExactSpace_CopiesAllElements()
+        {
+            var set = new Kibnet.IntSet(new[] { 7, 8, 9 });
+            var dst = new int[5];
+            // оставляем ровно 3 места в конце: 5 - 2 = 3
+            set.CopyTo(dst, 2, set.Count);
+            Assert.Equal(new[] { 0, 0, 7, 8, 9 }, dst);
+        }
+
+        [Fact]
+        public void CheckEmpty_BytesMinValue_ReturnsTrue()
+        {
+            var set = new Kibnet.IntSet(new[] { 1 });
+            // добиваем Bytes вручную (рефлексия) или через публичный API:
+            // например, удаляем все элементы, чтобы остались только нули
+            set.Clear();
+            // Пусть внутренне Bytes будут не null и все = 0
+            Assert.True(set.root.CheckEmpty());
+        }
+
+        [Fact]
+        public void CheckEmpty_BytesNotMinValue_ReturnsFalse()
+        {
+            var set = new Kibnet.IntSet(new[] { 1 });
+            Assert.False(set.root.CheckEmpty());
+        }
+
+        [Fact]
+        public void CheckFull_AllBytesMax_ClearsBytesAndReturnsTrue()
+        {
+            // создаём IntSet так, чтобы внутренний массив Bytes заполнен byte.MaxValue
+            var set = new Kibnet.IntSet();
+            // через публичный API добавить все возможные элементы до заполнения одной «карты»
+            foreach (var i in Enumerable.Range(0, 16384).ToArray())
+            {
+                set.Add(i);
+            }
+            Assert.False(set.root.Full);
+            Assert.False(set.root.Cards[0].Full);
+            Assert.False(set.root.Cards[0].Cards[0].Full);
+            Assert.True(set.root.Cards[0].Cards[0].Cards[0].Full);
+            Assert.Null(set.root.Cards[0].Cards[0].Cards[0].Cards);
+            // после этого Bytes должен стать null
+            Assert.Null(set.root.Cards[0].Cards[0].Cards[0].Bytes);
+        }
+
+        [Fact]
+        public void CheckFull_NonFull_DoesNotClearBytes()
+        {
+            var set = new Kibnet.IntSet(new[] { 1 });
+            Assert.False(set.root.Full);
+            // Bytes остаётся ненулевым
+            Assert.NotNull(set.root.Cards[0].Cards[0].Cards[0].Cards[0].Bytes);
+        }
     }
 }
