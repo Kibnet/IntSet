@@ -531,14 +531,14 @@ namespace Kibnet
         {
             for (int i0 = 32; i0 < 64; i0++)
             {
-                if (root.Cards[i0] != null)
+                if (root.Full || root.Cards[i0] != null)
                 {
                     yield return i0;
                 }
             }
             for (int i0 = 0; i0 < 32; i0++)
             {
-                if (root.Cards[i0] != null)
+                if (root.Full || root.Cards[i0] != null)
                 {
                     yield return i0;
                 }

@@ -1,11 +1,13 @@
-
+﻿
+using System;
 using System.Collections;
 using System.Linq;
 using Xunit;
+using static Kibnet.IntSet;
 
 namespace IntSet.Tests
 {
-    public class IntSetTests
+    public partial class IntSetTests
     {
         [Fact]
         public void GetEnumerableTest()
@@ -124,16 +126,36 @@ namespace IntSet.Tests
             }
         }
 
-        [Fact]
-        public void OrderedIEnumerateTest()
-        {
-            var intSet = new Kibnet.IntSet(TestHelper.GetEnumerable(100000, 0));
 
-            var last = -1;
+        [Theory]
+        [InlineData(int.MinValue, int.MinValue + 100000)]
+        [InlineData(int.MaxValue - 100000, int.MaxValue)]
+        [InlineData(-50000, 50000)]
+        [InlineData((1<<3)-50000, (1 << 3)+50000)]
+        [InlineData((1<<6)-50000, (1 << 6)+50000)]
+        [InlineData((1<<9)-50000, (1 << 9)+50000)]
+        [InlineData((1<<12)-50000, (1 << 12)+50000)]
+        [InlineData((1<<15)-50000, (1 << 15)+50000)]
+        [InlineData((1<<18)-50000, (1 << 18)+50000)]
+        [InlineData((1<<21)-50000, (1 << 21)+50000)]
+        [InlineData((1<<24)-50000, (1 << 24)+50000)]
+        [InlineData((1<<27)-50000, (1 << 27)+50000)]
+        [InlineData((1<<30)-50000, (1 << 30)+50000)]
+        [InlineData(-5, 5)]
+        public void OrderedIEnumerateTest(int from, int to)
+        {
+            var intSet = new Kibnet.IntSet(TestHelper.GetEnumerable(to, from));
+
+            int? last = null;
             var enumerable = intSet as IEnumerable;
             foreach (int i in enumerable)
             {
-                Assert.Equal(last + 1, i);
+                if (last == null)
+                {
+                    last = i;
+                    continue;
+                }
+                Assert.Equal(last+1, i);
                 last = i;
             }
         }
@@ -198,6 +220,22 @@ namespace IntSet.Tests
         }
 
         [Theory]
+        [InlineData(int.MinValue, int.MinValue + 1000000, 997)]
+        [InlineData(int.MaxValue - 1000000, int.MaxValue, 997)]
+        [InlineData(-5000000, 5000000, 997)]
+        [InlineData(int.MinValue, int.MaxValue, 2147477)]
+        public void FullSteppedSetTest(int from, int to, int step)
+        {
+            var intSet = new Kibnet.IntSet(false, true);
+            intSet.Add(0);
+
+            for (int i = from; i < to; i += step)
+            {
+                Assert.True(intSet.Contains(i));
+            }
+        }
+
+        [Theory]
         [InlineData(int.MinValue, int.MinValue + 100000)]
         [InlineData(int.MaxValue - 100000, int.MaxValue)]
         [InlineData(-50000, 50000)]
@@ -230,10 +268,18 @@ namespace IntSet.Tests
         {
             var intSet = new Kibnet.IntSet(false, true);
 
-            var last = -1;
+            var last = int.MinValue;
+            var first = true;
             foreach (var i in intSet.Take(100000))
             {
-                Assert.Equal(last + 1, i);
+                if (first)
+                {
+                    Assert.Equal(last, i);
+                    first = false;
+                }
+
+                else
+                    Assert.Equal(last + 1, i);
                 Assert.True(intSet.Contains(i));
                 last = i;
             }
@@ -384,6 +430,26 @@ namespace IntSet.Tests
             intSet.ExceptWith(intSet2);
 
             intSet.EqualRange(10001, 100000);
+        }
+
+        [Fact]
+        public void Contains_DefaultValue_ReturnsFalse()
+        {
+            var set = new Kibnet.IntSet();          // изначально все биты = 0
+            Assert.False(set.Contains(0));   // должно вернуть false
+            Assert.False(set.Contains(42));  // любое значение
+        }
+
+        [Fact]
+        public void CopyTo_MatchExactSpace_CopiesAll()
+        {
+            var set = new Kibnet.IntSet();
+            set.Add(1);
+            set.Add(2);
+            set.Add(3);
+            var dst = new int[5];
+            set.CopyTo(dst, 2);
+            Assert.Equal(new[] { 0, 0, 1, 2, 3 }, dst);
         }
     }
 }
