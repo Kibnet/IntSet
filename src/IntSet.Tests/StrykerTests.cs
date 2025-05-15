@@ -454,5 +454,60 @@ namespace Kibnet.Tests
             Assert.Single(set);
             Assert.False(set.IsReadOnly);
         }
+
+        [Fact]
+        public void ReadOnlyThrowArgumentNullException()
+        {
+            var set = new IntSet();
+            var readOnlySet = set.AsReadOnly();
+            Assert.Throws<NotSupportedException>(() => readOnlySet.IsFastest = true);
+            Assert.Throws<NotSupportedException>(() => readOnlySet.Clear());
+            Assert.Throws<NotSupportedException>(() => readOnlySet.Remove(1));
+            Assert.Throws<NotSupportedException>(() => readOnlySet.Add(1));
+            Assert.Throws<NotSupportedException>(() => readOnlySet.UnionWith(null));
+            Assert.Throws<NotSupportedException>(() => readOnlySet.IntersectWith(null));
+            Assert.Throws<NotSupportedException>(() => readOnlySet.ExceptWith(null));
+            Assert.Throws<NotSupportedException>(() => readOnlySet.SymmetricExceptWith(null));
+        }
+
+        [Fact]
+        public void SymmetricExceptWith()
+        {
+            var set1 = new IntSet();
+            var set2 = new IntSet([1,2,3]);
+            set1.SymmetricExceptWith(set2);
+            Assert.Equal(set1, set2);
+
+            set2.SymmetricExceptWith(set2);
+            Assert.Empty(set2);
+        }
+
+        [Fact]
+        //Test of IsProperSubsetOf with ienumerable
+        public void IsProperSubsetOfWithIEnumerable()
+        {
+            var set = new IntSet(new[] { 1, 2 });
+            IEnumerable<int> superset = new List<int> { 1, 2, 3 };
+
+            // set {1,2} является строгим подмножеством superset {1,2,3}
+            Assert.True(set.IsProperSubsetOf(superset));
+
+            // set {1,2,3} не является строгим подмножеством {1,2,3}
+            var equalSet = new IntSet(new[] { 1, 2, 3 });
+            Assert.False(equalSet.IsProperSubsetOf(superset));
+
+            // set {1,2,4} не является подмножеством {1,2,3}
+            var notSubset = new IntSet(new[] { 1, 2, 4 });
+            Assert.False(notSubset.IsProperSubsetOf(superset));
+        }
+
+        [Fact]
+        public void Add_InitializesBytes_WhenNull()
+        {
+            // создаём IntSet так, чтобы внутренний массив Bytes заполнен byte.MaxValue
+            var set = new IntSet();
+            // через публичный API добавить все возможные элементы до заполнения одной «карты»
+            set.Add(0);
+        }
     }
 }

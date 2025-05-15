@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -34,16 +34,23 @@ namespace Kibnet
             }
         }
 
-        protected bool _isFastest;
+        protected internal bool _isFastest;
 
-        protected long _count;
+        protected internal bool _isReadOnly;
+
+        protected internal long _count;
 
         public long LongCount => _count;
 
         public bool IsFastest
         {
             get => _isFastest;
-            set => _isFastest = value;
+            set
+            {
+                if (IsReadOnly)
+                    throw new NotSupportedException("Cannot modify a read-only IntSet");
+                _isFastest = value;
+            }
         }
 
         public Card root = new Card(0);
@@ -258,7 +265,7 @@ namespace Kibnet
                 {
                     if (card.Cards[index] == null)
                     {
-                        return false;
+                        break;
                     }
 
                     card = card.Cards[index];
@@ -269,7 +276,7 @@ namespace Kibnet
                     var mask = (byte) (1 << (index & 7));
                     if ((card.Bytes[bindex] & mask) == 0)
                     {
-                        return false;
+                        break;
                     }
 
                     card.Bytes[bindex] ^= mask;
@@ -575,12 +582,14 @@ namespace Kibnet
 
         public int Count => (int)_count;
 
-        public bool IsReadOnly { get; }
+        public bool IsReadOnly => _isReadOnly;
         
         void ICollection<int>.Add(int item) => Add(item);
         
         public void Clear()
         {
+            if (IsReadOnly)
+                throw new NotSupportedException("Cannot modify a read-only IntSet");
             root = new Card(0);
             _count = 0;
         }
@@ -602,14 +611,16 @@ namespace Kibnet
                 if (i < 4)
                 {
                     if (card.Cards?[index] == null)
-                        return false;
+                    {
+                        break;
+                    }
                     card = card.Cards[index];
                 }
                 else
                 {
                     if (card.Bytes == null)
                     {
-                        return false;
+                        break;
                     }
                     var bindex = index >> 3;
                     var mask = (byte)(1 << (index & 7));
@@ -661,7 +672,12 @@ namespace Kibnet
             }
         }
 
-        public bool Remove(int item) => InternalRemove(item, _isFastest);
+        public bool Remove(int item)
+        {
+            if (IsReadOnly)
+                throw new NotSupportedException("Cannot modify a read-only IntSet");
+            return InternalRemove(item, _isFastest);
+        }
 
         #endregion
 
@@ -669,18 +685,20 @@ namespace Kibnet
 
         public bool Add(int item)
         {
+            if (IsReadOnly)
+                throw new NotSupportedException("Cannot modify a read-only IntSet");
             var card = root;
             for (int i = 0; i < 5; i++)
             {
                 if (card.Full)
                 {
-                    return false;
+                    break;
                 }
 
                 var index = Card.GetIndex(item, i);
                 if (i < 4)
                 {
-                    if (card.Cards == null)
+                    if (i == 0 && card.Cards == null)
                     {
                         card.Init(i);
                     }
@@ -697,10 +715,6 @@ namespace Kibnet
                 }
                 else
                 {
-                    if (card.Bytes == null)
-                    {
-                        card.Init(i);
-                    }
                     var bindex = index >> 3;
                     var mask = (byte)(1 << (index & 7));
                     if ((card.Bytes[bindex] & mask) == 0)
@@ -716,8 +730,6 @@ namespace Kibnet
                                 var parentCard1 = parentCard0.Cards[Card.GetIndex(item, 1)];
                                 var parentCard2 = parentCard1.Cards[Card.GetIndex(item, 2)];
                                 var parentCard3 = parentCard2.Cards[Card.GetIndex(item, 3)];
-                                //var parentCard4 = parentCard3.Cards[indexes[4]];
-                                //if (parentCard4.CheckFull())
                                 if (parentCard3.CheckFull())
                                     if (parentCard2.CheckFull())
                                         if (parentCard1.CheckFull())
@@ -734,6 +746,9 @@ namespace Kibnet
         
         public void UnionWith(IEnumerable<int> other)
         {
+            if (IsReadOnly)
+                throw new NotSupportedException("Cannot modify a read-only IntSet");
+                
             if (other == null)
             {
                 throw new ArgumentNullException(nameof(other));
@@ -747,6 +762,9 @@ namespace Kibnet
 
         public void IntersectWith(IEnumerable<int> other)
         {
+            if (IsReadOnly)
+                throw new NotSupportedException("Cannot modify a read-only IntSet");
+                
             if (other == null)
             {
                 throw new ArgumentNullException(nameof(other));
@@ -780,6 +798,8 @@ namespace Kibnet
 
         public void ExceptWith(IEnumerable<int> other)
         {
+            if (IsReadOnly)
+                throw new NotSupportedException("Cannot modify a read-only IntSet");
             foreach (var item in other)
             {
                 Remove(item);
@@ -788,6 +808,9 @@ namespace Kibnet
 
         public void SymmetricExceptWith(IEnumerable<int> other)
         {
+            if (IsReadOnly)
+                throw new NotSupportedException("Cannot modify a read-only IntSet");
+                
             if (other == null)
             {
                 throw new ArgumentNullException(nameof(other));
@@ -1044,5 +1067,35 @@ namespace Kibnet
         }
 
         #endregion
+    }
+
+    public sealed class ReadOnlyIntSet : IntSet, IReadOnlyCollection<int>
+    {
+        public ReadOnlyIntSet(IntSet set) : base(true)
+        {
+            if (set == null)
+                throw new ArgumentNullException(nameof(set));
+                
+            root = set.root;
+            _count = set._count;
+            _isReadOnly = true;
+            _isFastest = set._isFastest;
+        }
+        
+        public static IntSet AsReadOnly(IntSet set)
+        {
+            if (set == null)
+                throw new ArgumentNullException(nameof(set));
+                
+            return set.IsReadOnly ? set : new ReadOnlyIntSet(set);
+        }
+    }
+
+    public static class IntSetExtension
+    {
+        public static IntSet AsReadOnly(this IntSet set)
+        {
+            return ReadOnlyIntSet.AsReadOnly(set);
+        }
     }
 }
