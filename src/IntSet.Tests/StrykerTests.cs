@@ -509,5 +509,12 @@ namespace Kibnet.Tests
             // через публичный API добавить все возможные элементы до заполнения одной «карты»
             set.Add(0);
         }
+
+        [Fact]
+        public void ArgumentNullExceptionReadOnlyIntSet()
+        {
+            Assert.Throws<ArgumentNullException>(() => new ReadOnlyIntSet(null));
+            Assert.Throws<ArgumentNullException>(() => ReadOnlyIntSet.AsReadOnly(null));
+        }
     }
 }
