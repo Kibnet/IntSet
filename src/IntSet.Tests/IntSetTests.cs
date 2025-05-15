@@ -3,9 +3,8 @@ using System;
 using System.Collections;
 using System.Linq;
 using Xunit;
-using static Kibnet.IntSet;
 
-namespace IntSet.Tests
+namespace Kibnet.Tests
 {
     public partial class IntSetTests
     {

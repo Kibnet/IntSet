@@ -721,7 +721,8 @@ namespace Kibnet
                                 if (parentCard3.CheckFull())
                                     if (parentCard2.CheckFull())
                                         if (parentCard1.CheckFull())
-                                            if (parentCard0.CheckFull()) ;
+                                            if (parentCard0.CheckFull()) 
+                                                root.CheckFull();
                             }
                         }
                         return true;
