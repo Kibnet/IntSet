@@ -9,6 +9,12 @@ using System.Xml.Linq;
 
 namespace Kibnet
 {
+    internal enum TraversalDirection
+    {
+        Ascending,
+        Descending
+    }
+
     [Serializable]
     public class IntSet : ISet<int>, IReadOnlyCollection<int>
     {
@@ -516,15 +522,24 @@ namespace Kibnet
 
         public IEnumerator<int> GetEnumerator()
         {
-            foreach (var i0 in TraverseRootCards(root))
+            foreach (var i0 in TraverseRootCardsDirectional(root, TraversalDirection.Ascending))
             {
-                foreach (var i1 in TraverseCards(root, i0))
+                var card0 = root.Full ? root : root.Cards?[i0];
+                if (card0 == null) continue;
+
+                foreach (var i1 in TraverseCardLevelDirectional(card0, TraversalDirection.Ascending))
                 {
-                    foreach (var i2 in TraverseCards(root, i0, i1))
+                    var card1 = card0.Full ? card0 : card0.Cards?[i1];
+                    if (card1 == null) continue;
+
+                    foreach (var i2 in TraverseCardLevelDirectional(card1, TraversalDirection.Ascending))
                     {
-                        foreach (var i3 in TraverseCards(root, i0, i1, i2))
+                        var card2 = card1.Full ? card1 : card1.Cards?[i2];
+                        if (card2 == null) continue;
+
+                        foreach (var i3 in TraverseCardLevelDirectional(card2, TraversalDirection.Ascending))
                         {
-                            foreach (var value in ProcessBytes(root, i0, i1, i2, i3))
+                            foreach (var value in ProcessBytesDirectional(root, i0, i1, i2, i3, TraversalDirection.Ascending))
                             {
                                 yield return value;
                             }
@@ -538,14 +553,14 @@ namespace Kibnet
         {
             for (int i0 = 32; i0 < 64; i0++)
             {
-                if (root.Full || root.Cards[i0] != null)
+                if (root.Full || (root.Cards != null && root.Cards[i0] != null))
                 {
                     yield return i0;
                 }
             }
             for (int i0 = 0; i0 < 32; i0++)
             {
-                if (root.Full || root.Cards[i0] != null)
+                if (root.Full || (root.Cards != null && root.Cards[i0] != null))
                 {
                     yield return i0;
                 }
@@ -554,26 +569,368 @@ namespace Kibnet
 
         private IEnumerable<int> TraverseCards(Card node, params int[] indices)
         {
-            var current = indices.Aggregate(node, (n, index) => n.Full ? n : n.Cards[index]);
-            return current != null ? (IEnumerable<int>)current : [];
+            var current = node;
+            foreach (var index in indices)
+            {
+                if (current.Full) break;
+                if (current.Cards == null || current.Cards[index] == null) return Enumerable.Empty<int>();
+                current = current.Cards[index];
+            }
+            // At this point, 'current' is the card at the level specified by indices.
+            // This method, as used by the original GetEnumerator, expects to return the *indices* of the next level.
+            // Or, if it's the byte level, it returns the bytes themselves.
+
+            if (current.Full) // If the target card is full, all its sub-indices/bytes are present.
+            {
+                if (indices.Length == 3) // This means 'current' is a level 3 card, next is byte level
+                {
+                    return Enumerable.Range(0, 32).Select(i => (int)byte.MaxValue); // Represent full bytes
+                }
+                else // Next is another card level
+                {
+                    return Enumerable.Range(0, 64);
+                }
+            }
+            else if (indices.Length == 3) // Target is byte level, and not full
+            {
+                if (current.Bytes != null)
+                {
+                    return current.Bytes.Select(b => (int)b);
+                }
+                return Enumerable.Empty<int>();
+            }
+            else // Target is another card level, and not full
+            {
+                if (current.Cards != null)
+                {
+                    List<int> availableIndices = new List<int>();
+                    for (int i = 0; i < 64; i++)
+                    {
+                        if (current.Cards[i] != null)
+                        {
+                            availableIndices.Add(i);
+                        }
+                    }
+                    return availableIndices;
+                }
+                return Enumerable.Empty<int>();
+            }
         }
 
         private IEnumerable<int> ProcessBytes(Card root, int i0, int i1, int i2, int i3)
         {
-            var bytes = TraverseCards(root, i0, i1, i2, i3);
-            int byteCount = 0;
-
-            foreach (var i4 in bytes.Cast<byte>())
+            // Navigate to the leaf card (level 4 card)
+            Card leafCard = root;
+            int[] path = { i0, i1, i2, i3 };
+            foreach (var index in path)
             {
-                for (int j = 0; j < 8; j++)
+                if (leafCard.Full) break; // All sub-paths exist
+                if (leafCard.Cards == null || leafCard.Cards[index] == null) yield break; // Path does not exist
+                leafCard = leafCard.Cards[index];
+            }
+
+            IEnumerable<byte> bytesToProcess;
+            if (leafCard.Full)
+            {
+                bytesToProcess = Enumerable.Repeat(byte.MaxValue, 32);
+            }
+            else if (leafCard.Bytes != null)
+            {
+                bytesToProcess = leafCard.Bytes;
+            }
+            else
+            {
+                yield break; // No bytes to process
+            }
+
+            int byteIndexInArray = 0;
+            foreach (var byteValue in bytesToProcess)
+            {
+                for (int bitIdx = 0; bitIdx < 8; bitIdx++)
                 {
-                    if ((i4 & (1 << j)) != 0)
+                    if ((byteValue & (1 << bitIdx)) != 0)
                     {
-                        yield return (i0 << 26) | (i1 << 20) | (i2 << 14) | (i3 << 8) | (byteCount << 3) | j;
+                        yield return (i0 << 26) | (i1 << 20) | (i2 << 14) | (i3 << 8) | (byteIndexInArray << 3) | bitIdx;
                     }
                 }
-                byteCount++;
+                byteIndexInArray++;
             }
+        }
+
+        // New Bidirectional Traversal Methods
+
+        private IEnumerable<int> TraverseRootCardsDirectional(Card rootNode, TraversalDirection direction)
+        {
+            if (direction == TraversalDirection.Ascending)
+            {
+                for (int i0 = 32; i0 < 64; i0++)
+                {
+                    if (rootNode.Full || (rootNode.Cards != null && rootNode.Cards[i0] != null))
+                    {
+                        yield return i0;
+                    }
+                }
+                for (int i0 = 0; i0 < 32; i0++)
+                {
+                    if (rootNode.Full || (rootNode.Cards != null && rootNode.Cards[i0] != null))
+                    {
+                        yield return i0;
+                    }
+                }
+            }
+            else // Descending
+            {
+                for (int i0 = 31; i0 >= 0; i0--)
+                {
+                    if (rootNode.Full || (rootNode.Cards != null && rootNode.Cards[i0] != null))
+                    {
+                        yield return i0;
+                    }
+                }
+                for (int i0 = 63; i0 >= 32; i0--)
+                {
+                    if (rootNode.Full || (rootNode.Cards != null && rootNode.Cards[i0] != null))
+                    {
+                        yield return i0;
+                    }
+                }
+            }
+        }
+
+        private IEnumerable<int> TraverseCardLevelDirectional(Card currentCard, TraversalDirection direction)
+        {
+            if (direction == TraversalDirection.Ascending)
+            {
+                if (currentCard.Cards != null)
+                {
+                    for (int idx = 0; idx < 64; idx++)
+                    {
+                        if (currentCard.Cards[idx] != null)
+                        {
+                            yield return idx;
+                        }
+                    }
+                }
+                else if (currentCard.Full)
+                {
+                    for (int idx = 0; idx < 64; idx++)
+                    {
+                        yield return idx;
+                    }
+                }
+            }
+            else // Descending
+            {
+                if (currentCard.Cards != null)
+                {
+                    for (int idx = 63; idx >= 0; idx--)
+                    {
+                        if (currentCard.Cards[idx] != null)
+                        {
+                            yield return idx;
+                        }
+                    }
+                }
+                else if (currentCard.Full)
+                {
+                    for (int idx = 63; idx >= 0; idx--)
+                    {
+                        yield return idx;
+                    }
+                }
+            }
+        }
+
+        private IEnumerable<byte> TraverseByteLevelDirectional(Card leafCard, TraversalDirection direction)
+        {
+            if (direction == TraversalDirection.Ascending)
+            {
+                if (leafCard.Bytes != null)
+                {
+                    for (int byteIdx = 0; byteIdx < 32; byteIdx++)
+                    {
+                        yield return leafCard.Bytes[byteIdx];
+                    }
+                }
+                else if (leafCard.Full)
+                {
+                    for (int byteIdx = 0; byteIdx < 32; byteIdx++)
+                    {
+                        yield return byte.MaxValue;
+                    }
+                }
+            }
+            else // Descending
+            {
+                if (leafCard.Bytes != null)
+                {
+                    for (int byteIdx = 31; byteIdx >= 0; byteIdx--)
+                    {
+                        yield return leafCard.Bytes[byteIdx];
+                    }
+                }
+                else if (leafCard.Full)
+                {
+                    for (int byteIdx = 31; byteIdx >= 0; byteIdx--)
+                    {
+                        yield return byte.MaxValue;
+                    }
+                }
+            }
+        }
+
+        private IEnumerable<int> ProcessBytesDirectional(Card rootNode, int i0, int i1, int i2, int i3, TraversalDirection direction)
+        {
+            var current = rootNode;
+            int[] indices = { i0, i1, i2, i3 };
+            foreach (var index in indices)
+            {
+                if (current.Full) break; 
+                if (current.Cards == null || current.Cards[index] == null) yield break;
+                current = current.Cards[index];
+            }
+            Card leafCard = current;
+
+            if (direction == TraversalDirection.Ascending)
+            {
+                int byteIndexInArray = 0;
+                foreach (var byteValue in TraverseByteLevelDirectional(leafCard, TraversalDirection.Ascending))
+                {
+                    for (int bitIdx = 0; bitIdx < 8; bitIdx++)
+                    {
+                        if ((byteValue & (1 << bitIdx)) != 0)
+                        {
+                            yield return (i0 << 26) | (i1 << 20) | (i2 << 14) | (i3 << 8) | (byteIndexInArray << 3) | bitIdx;
+                        }
+                    }
+                    byteIndexInArray++;
+                }
+            }
+            else // Descending
+            {
+                int byteIndexInArray = 31;
+                foreach (var byteValue in TraverseByteLevelDirectional(leafCard, TraversalDirection.Descending))
+                {
+                    for (int bitIdx = 7; bitIdx >= 0; bitIdx--)
+                    {
+                        if ((byteValue & (1 << bitIdx)) != 0)
+                        {
+                            yield return (i0 << 26) | (i1 << 20) | (i2 << 14) | (i3 << 8) | (byteIndexInArray << 3) | bitIdx;
+                        }
+                    }
+                    byteIndexInArray--;
+                }
+            }
+        }
+
+        #endregion
+
+        #region Public API
+
+        public IEnumerable<int> GetElementsInRange(int firstElement, int lastElement)
+        {
+            int minValue = Math.Min(firstElement, lastElement);
+            int maxValue = Math.Max(firstElement, lastElement);
+            TraversalDirection direction = (firstElement <= lastElement) ? TraversalDirection.Ascending : TraversalDirection.Descending;
+
+            Card c0Node, c1Node, c2Node; 
+
+            foreach (int i0 in TraverseRootCardsDirectional(root, direction))
+            {
+                var (blockMin_i0, blockMax_i0) = GetBlockRange(i0);
+                if (direction == TraversalDirection.Ascending) {
+                    if (blockMin_i0 > maxValue) break; 
+                    if (blockMax_i0 < minValue) continue; 
+                } else { // Descending
+                    if (blockMax_i0 < minValue) break; 
+                    if (blockMin_i0 > maxValue) continue; 
+                }
+
+                c0Node = (root.Full || root.Cards == null) ? root : root.Cards[i0];
+                if (c0Node == null) continue; 
+
+                foreach (int i1 in TraverseCardLevelDirectional(c0Node, direction))
+                {
+                    var (blockMin_i1, blockMax_i1) = GetBlockRange(i0, i1);
+                    if (direction == TraversalDirection.Ascending) {
+                        if (blockMin_i1 > maxValue) break; 
+                        if (blockMax_i1 < minValue) continue;
+                    } else { // Descending
+                        if (blockMax_i1 < minValue) break;
+                        if (blockMin_i1 > maxValue) continue;
+                    }
+
+                    c1Node = (c0Node.Full || c0Node.Cards == null) ? c0Node : c0Node.Cards[i1];
+                    if (c1Node == null) continue;
+
+                    foreach (int i2 in TraverseCardLevelDirectional(c1Node, direction))
+                    {
+                        var (blockMin_i2, blockMax_i2) = GetBlockRange(i0, i1, i2);
+                        if (direction == TraversalDirection.Ascending) {
+                            if (blockMin_i2 > maxValue) break;
+                            if (blockMax_i2 < minValue) continue;
+                        } else { // Descending
+                            if (blockMax_i2 < minValue) break;
+                            if (blockMin_i2 > maxValue) continue;
+                        }
+
+                        c2Node = (c1Node.Full || c1Node.Cards == null) ? c1Node : c1Node.Cards[i2];
+                        if (c2Node == null) continue;
+                        
+                        foreach (int i3 in TraverseCardLevelDirectional(c2Node, direction))
+                        {
+                            var (blockMin_i3, blockMax_i3) = GetBlockRange(i0, i1, i2, i3);
+                            if (direction == TraversalDirection.Ascending) {
+                                if (blockMin_i3 > maxValue) break;
+                                if (blockMax_i3 < minValue) continue;
+                            } else { // Descending
+                                if (blockMax_i3 < minValue) break;
+                                if (blockMin_i3 > maxValue) continue;
+                            }
+
+                            foreach (int value in ProcessBytesDirectional(root, i0, i1, i2, i3, direction))
+                            {
+                                if (value >= minValue && value <= maxValue)
+                                {
+                                    yield return value;
+                                }
+                                // Optimization: if ProcessBytesDirectional guarantees sorted output for its block:
+                                if (direction == TraversalDirection.Ascending && value > maxValue && value >= blockMin_i3) break; 
+                                if (direction == TraversalDirection.Descending && value < minValue && value <= blockMax_i3) break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private static (int Min, int Max) GetBlockRange(int i0 = -1, int i1 = -1, int i2 = -1, int i3 = -1)
+        {
+            int minBase = 0;
+            int maxBase = 0;
+            uint currentMaxMask = 0xFFFFFFFF; 
+
+            if (i0 != -1) {
+                minBase |= (i0 << 26);
+                maxBase |= (i0 << 26);
+                currentMaxMask = 0x03FFFFFF; 
+            }
+            if (i1 != -1) {
+                minBase |= (i1 << 20);
+                maxBase |= (i1 << 20);
+                currentMaxMask = 0x000FFFFF; 
+            }
+            if (i2 != -1) {
+                minBase |= (i2 << 14);
+                maxBase |= (i2 << 14);
+                currentMaxMask = 0x00003FFF; 
+            }
+            if (i3 != -1) {
+                minBase |= (i3 << 8);
+                maxBase |= (i3 << 8);
+                currentMaxMask = 0x000000FF; 
+            }
+            return (minBase, maxBase | (int)currentMaxMask);
         }
 
         #endregion
