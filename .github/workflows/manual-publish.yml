@@ -1,15 +1,10 @@
-name: NuGet Generation
+name: Manual NuGet Publication
 
 on:
-  push:
-    branches: [ master ]
-  pull_request:
-    types: [closed]
-    branches: [ master ]
+  workflow_dispatch: # Allows manual triggering from the GitHub Actions UI
 
 jobs:
-  build:
-
+  publish:
     runs-on: ubuntu-latest
 
     steps:

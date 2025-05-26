@@ -1,0 +1,24 @@
+name: CI Tests
+
+on:
+  push:
+    branches: ['**'] # Test on push to all branches
+  pull_request:
+    branches: ['**'] # Test on PR to all branches (can remove type filter or adjust as needed)
+
+jobs:
+  test: # Renamed job for clarity
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 9.0.5 # Consider updating if your project supports newer .NET versions
+    - name: Install dependencies
+      run: dotnet restore
+    - name: Run tests
+      run: dotnet test --configuration Release --no-restore 
+      # Removed Pack and Push steps
