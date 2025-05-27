@@ -1,0 +1,25 @@
+name: CI Tests
+
+on:
+  push:
+    branches: ['**'] # Test on push to all branches
+  pull_request:
+    branches: ['**'] # Test on PR to all branches (can remove type filter or adjust as needed)
+
+jobs:
+  test: # Renamed job for clarity
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+    - name: Restore dependencies
+      run: dotnet restore
+    - name: Build
+      run: dotnet build --no-restore
+    - name: Test
+      run: dotnet test --no-build --verbosity normal

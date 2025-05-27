@@ -196,6 +196,87 @@ namespace Kibnet.Tests
         }
 
         [Fact]
+        public void CheckUniqueAndUnfoundElements_EmptySet_ReturnsCorrectCounts()
+        {
+            var set = new IntSet();
+            var result = set.IsSubsetOf(new[] { 1, 2 });
+            Assert.Equal(true, result);
+        }
+
+        [Fact]
+        public void CheckUniqueAndUnfoundElements_MixedElements_ReturnsCorrectCounts()
+        {
+            var set = new IntSet(new[] { 1, 2, 3 });
+            var result = set.IsSubsetOf(new[] { 2, 3, 4, 5 });
+            Assert.Equal(false, result);
+        }
+
+        [Fact]
+        public void ContainsAllElements_EmptyEnumerable_ReturnsTrue()
+        {
+            var set = new IntSet(new[] { 1, 2, 3 });
+            Assert.True(set.IsSupersetOf(Enumerable.Empty<int>()));
+        }
+
+        [Fact]
+        public void ContainsAllElements_MixedElements_ReturnsFalse()
+        {
+            var set = new IntSet(new[] { 1, 2, 3 });
+            Assert.False(set.IsSupersetOf(new[] { 2, 3, 4 }));
+        }
+
+        [Fact]
+        public void IntersectWithIntSet_EmptySet_DoesNotChange()
+        {
+            var set = new IntSet(new[] { 1, 2, 3 });
+            var other = new IntSet();
+            set.IntersectWith(other);
+            Assert.Empty(set);
+        }
+
+        [Fact]
+        public void IntersectWithIntSet_PartialIntersection_RetainsCommonElements()
+        {
+            var set = new IntSet(new[] { 1, 2, 3 });
+            var other = new IntSet(new[] { 2, 3, 4 });
+            set.IntersectWith(other);
+            Assert.Equal(new[] { 2, 3 }, set.OrderBy(x => x));
+        }
+
+        [Fact]
+        public void IntersectWithEnumerable_EmptyEnumerable_DoesNotChange()
+        {
+            var set = new IntSet(new[] { 1, 2, 3 });
+            set.IntersectWith(Enumerable.Empty<int>());
+            Assert.Equal(Enumerable.Empty<int>(), set.OrderBy(x => x));
+        }
+
+        [Fact]
+        public void IntersectWithEnumerable_PartialIntersection_RetainsCommonElements()
+        {
+            var set = new IntSet(new[] { 1, 2, 3 });
+            var other = new[] { 2, 3, 4 };
+            set.IntersectWith(other);
+            Assert.Equal(new[] { 2, 3 }, set.OrderBy(x => x));
+        }
+
+        [Fact]
+        public void Constructor_FullSet_CreatesFullSet()
+        {
+            var set = new IntSet(false, true);
+            Assert.Equal(uint.MaxValue, set.LongCount);
+            Assert.True(set.root.Full);
+            Assert.Null(set.root.Cards);
+        }
+
+        [Fact]
+        public void Constructor_EmptyCollection_DoesNotThrow()
+        {
+            var set = new IntSet(new int[0]);
+            Assert.Empty(set);
+        }
+
+        [Fact]
         public void SetEquals_DifferentCounts_ReturnsFalse()
         {
             var a = new IntSet(new[] { 1 });
@@ -326,6 +407,58 @@ namespace Kibnet.Tests
             Assert.False(set.root.Full);
             // Bytes остаётся ненулевым
             Assert.NotNull(set.root.Cards[0].Cards[0].Cards[0].Cards[0].Bytes);
+        }
+
+        [Fact]
+        public void Remove_CascadeRemoval_RemovesAllLevels()
+        {
+            var set = new IntSet();
+            set.Add(1000000); // This will create a deep card structure
+            Assert.True(set.Contains(1000000));
+            Assert.True(set.Remove(1000000));
+            Assert.False(set.Contains(1000000));
+            Assert.Equal(0, set.Count);
+        }
+
+        [Fact]
+        public void LargeSetOperations_ReturnsCorrectCounts()
+        {
+            var set = new IntSet();
+            for (int i = 0; i < 1000; i++)
+            {
+                set.Add(i * 2); // Add even numbers
+            }
+
+            var otherSet = new IntSet(Enumerable.Range(0, 1000));
+            Assert.Equal(1000, set.Count); // 1000 even numbers
+            Assert.Equal(1000, otherSet.Count); // 1000 numbers
+
+            set.IntersectWith(otherSet);
+            Assert.Equal(500, set.Count); // 500 even numbers
+        }
+
+        [Fact]
+        public void BoundaryValuesOperations_WorkCorrectly()
+        {
+            var set = new IntSet();
+            
+            // Test with max int value
+            set.Add(int.MaxValue);
+            Assert.True(set.Contains(int.MaxValue));
+            Assert.True(set.Remove(int.MaxValue));
+            Assert.False(set.Contains(int.MaxValue));
+
+            // Test with min int value
+            set.Add(int.MinValue);
+            Assert.True(set.Contains(int.MinValue));
+            Assert.True(set.Remove(int.MinValue));
+            Assert.False(set.Contains(int.MinValue));
+
+            // Test with positive boundary
+            set.Add(16383); // Last index in first card
+            Assert.True(set.Contains(16383));
+            Assert.True(set.Remove(16383));
+            Assert.False(set.Contains(16383));
         }
 
         [Fact]
