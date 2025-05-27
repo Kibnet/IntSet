@@ -12,13 +12,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Setup .NET Core
-      uses: actions/setup-dotnet@v1
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 9.0.5 # Consider updating if your project supports newer .NET versions
-    - name: Install dependencies
+        dotnet-version: 9.0.x
+    - name: Restore dependencies
       run: dotnet restore
-    - name: Run tests
-      run: dotnet test --configuration Release --no-restore 
-      # Removed Pack and Push steps
+    - name: Build
+      run: dotnet build --no-restore
+    - name: Test
+      run: dotnet test --no-build --verbosity normal
