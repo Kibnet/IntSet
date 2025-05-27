@@ -46,8 +46,14 @@ namespace Kibnet
 
         protected internal long _count;
 
+        /// <summary>
+        /// The number of elements contained in the set
+        /// </summary>
         public long LongCount => _count;
 
+        /// <summary>
+        /// The flag is a setting indicating that actions need to be performed faster, sacrificing memory release
+        /// </summary>
         public bool IsFastest
         {
             get => _isFastest;
@@ -827,6 +833,12 @@ namespace Kibnet
 
         #region Public API
 
+        /// <summary>
+        /// Get the elements in a given range sorted from first to last
+        /// </summary>
+        /// <param name="firstElement">First element of range</param>
+        /// <param name="lastElement">Last element of range</param>
+        /// <returns></returns>
         public IEnumerable<int> GetElementsInRange(int firstElement, int lastElement)
         {
             int minValue = Math.Min(firstElement, lastElement);
