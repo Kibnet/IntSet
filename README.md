@@ -39,3 +39,25 @@ The repository has tests that show that everything works as it should.
 
 I also have a code with benchmarks that shows superiority over HashSet in the operations of adding, deleting, and contains.
 I will publish it in this repository after I bring it to an acceptable form.
+
+## Benchmarks
+
+This project includes benchmarks to compare the performance and memory usage of `IntSet` against the standard `System.Collections.Generic.HashSet<int>`. The benchmarks are implemented using [BenchmarkDotNet](https://benchmarkdotnet.org/).
+
+### Running the Benchmarks
+
+To run the benchmarks:
+
+1.  Navigate to the benchmark project directory:
+    ```bash
+    cd src/IntSet.Benchmarks
+    ```
+2.  Run the benchmark project:
+    ```bash
+    dotnet run -c Release
+    ```
+    It is highly recommended to run benchmarks in `Release` configuration for accurate results.
+
+### Benchmark Results
+
+The benchmark results will be displayed in the console after the run completes. Additionally, BenchmarkDotNet will generate detailed reports (including markdown files, CSV files, and plots) in a `BenchmarkDotNet.Artifacts` directory within `src/IntSet.Benchmarks/bin/Release/netX.X/` (where `netX.X` is the target framework, e.g., `net9.0`).
