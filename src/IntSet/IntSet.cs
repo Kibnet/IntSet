@@ -916,6 +916,56 @@ namespace Kibnet
             }
         }
 
+        /// <summary>
+        /// Skips a specified number of elements in a sequence and then returns the remaining elements.
+        /// </summary>
+        /// <param name="count">The number of elements to skip before returning the remaining elements.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> that contains the elements that occur after the specified index in the input sequence.</returns>
+        public IEnumerable<int> Skip(int count)
+        {
+            if (count <= 0)
+            {
+                // Return all elements in ascending order
+                foreach (var item in this)
+                {
+                    yield return item;
+                }
+                yield break;
+            }
+
+            if (count >= this.LongCount)
+            {
+                // Return empty if count is too large
+                yield break;
+            }
+
+            int? elementToStartFrom = null;
+            long elementsSkipped = 0; // Use long to match LongCount
+
+            // Iterate to find the (count)-th element (0-indexed).
+            // This element is the first one to be included.
+            foreach (var item in this) // 'this' iterates in ascending order
+            {
+                if (elementsSkipped == count)
+                {
+                    elementToStartFrom = item;
+                    break;
+                }
+                elementsSkipped++;
+            }
+
+            if (elementToStartFrom.HasValue)
+            {
+                // GetElementsInRange is inclusive of its first parameter.
+                foreach (var itemInRange in GetElementsInRange(elementToStartFrom.Value, int.MaxValue))
+                {
+                    yield return itemInRange;
+                }
+            }
+            // If elementToStartFrom is null (e.g., if count == LongCount, though caught earlier),
+            // this correctly yields nothing.
+        }
+
         private static (int Min, int Max) GetBlockRange(int i0 = -1, int i1 = -1, int i2 = -1, int i3 = -1)
         {
             int minBase = 0;

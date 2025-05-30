@@ -605,5 +605,56 @@ namespace Kibnet.Tests
         }
 
         #endregion
+
+        #region Skip Tests
+
+        [Theory]
+        [InlineData(new int[] { }, 0, new int[] { })]
+        [InlineData(new int[] { }, 1, new int[] { })]
+        [InlineData(new int[] { }, -1, new int[] { })]
+        [InlineData(new[] { 1, 2, 3 }, 0, new[] { 1, 2, 3 })]
+        [InlineData(new[] { 1, 2, 3 }, -2, new[] { 1, 2, 3 })] // Negative count should be like 0
+        [InlineData(new[] { 1, 2, 3 }, 1, new[] { 2, 3 })]
+        [InlineData(new[] { 1, 2, 3 }, 2, new[] { 3 })]
+        [InlineData(new[] { 1, 2, 3 }, 3, new int[] { })] // Count equals length
+        [InlineData(new[] { 1, 2, 3 }, 4, new int[] { })] // Count greater than length
+        [InlineData(new[] { -5, -2, 0, 3, 7 }, 0, new[] { -5, -2, 0, 3, 7 })]
+        [InlineData(new[] { -5, -2, 0, 3, 7 }, 2, new[] { 0, 3, 7 })]
+        [InlineData(new[] { -5, -2, 0, 3, 7 }, 4, new[] { 7 })]
+        [InlineData(new[] { -5, -2, 0, 3, 7 }, 5, new int[] { })]
+        [InlineData(new[] { -5, -2, 0, 3, 7 }, 6, new int[] { })]
+        [InlineData(new[] { -5, -2, 0, 3, 7 }, -5, new[] { -5, -2, 0, 3, 7 })]
+        public void Skip_VariousScenarios(int[] setData, int count, int[] expectedData)
+        {
+            // Arrange
+            var set = new Kibnet.IntSet(setData);
+            var expected = expectedData.ToList();
+
+            // Act
+            var actual = set.Skip(count).ToList();
+
+            // Assert
+            Assert.Equal(expected, actual); // Assert.Equal on lists checks order and content
+        }
+
+        [Fact]
+        public void Skip_LargeSet_ReturnsCorrectSubsetsAndOrder()
+        {
+            // Arrange
+            var largeSetData = Enumerable.Range(0, 1000).ToArray(); // Creates {0, 1, ..., 999}
+            var set = new Kibnet.IntSet(largeSetData);
+
+            // Act & Assert
+            // Compare with LINQ's Skip behavior
+            Assert.Equal(largeSetData.Skip(0).ToList(), set.Skip(0).ToList());
+            Assert.Equal(largeSetData.Skip(100).ToList(), set.Skip(100).ToList());
+            Assert.Equal(largeSetData.Skip(500).ToList(), set.Skip(500).ToList());
+            Assert.Equal(largeSetData.Skip(999).ToList(), set.Skip(999).ToList());
+            Assert.Equal(largeSetData.Skip(1000).ToList(), set.Skip(1000).ToList()); // Should be empty
+            Assert.Equal(largeSetData.Skip(1001).ToList(), set.Skip(1001).ToList()); // Should be empty
+            Assert.Equal(largeSetData.Skip(-10).ToList(), set.Skip(-10).ToList()); // Negative, should return all
+        }
+
+        #endregion
     }
 }
