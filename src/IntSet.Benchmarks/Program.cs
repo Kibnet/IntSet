@@ -11,7 +11,7 @@ public class Program
         // var summary = BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
 
         // To run a specific benchmark class
-        var summary = BenchmarkRunner.Run<SetOperationsBenchmarks>(null, args);
+        var summary = BenchmarkRunner.Run<MemoryAnalysisBenchmarks>(null, args);
 
         // You can add more summaries or configurations if needed
         Console.WriteLine("IntSet Benchmarks completed.");

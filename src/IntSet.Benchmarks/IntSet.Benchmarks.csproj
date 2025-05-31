@@ -15,4 +15,8 @@
     <ProjectReference Include="..\IntSet\IntSet.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="MemoryAnalysisBenchmarks.cs" />
+  </ItemGroup>
+
 </Project>
